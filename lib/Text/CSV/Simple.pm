@@ -1,6 +1,17 @@
+package Text::CSV::Simple::__::Base;
+
+use Class::Trigger;
+
+__PACKAGE__->add_trigger(on_failure => sub { 
+	my ($self, $csv) = @_;
+	warn "Failed on " . $csv->error_input . "\n";
+});
+
 package Text::CSV::Simple;
 
-$VERSION = '0.10';
+use base 'Text::CSV::Simple::__::Base';
+
+$VERSION = '0.20';
 
 use strict;
 
@@ -77,11 +88,50 @@ often want a hash of data with meaningful names. If you set up a field_map
 giving the name you'd like for each field, then we do the right thing
 for you! Fields named 'null' vanish into the ether.
 
-=head1 Error Handling
+=head1 TRIGGER POINTS
 
-Currenly, for each line that we can't parse, we emit a warning, and move
-on. If this isn't what you want, feel free to subclass and override
-_failed().
+To enable you to make this module do things that I haven't dreamed off
+(without you having to bother me with requests to extend the
+functionality), we use Class::Trigger to provide a variety of points at
+which you can hook in and do what you need. In general these should be
+attached to the $parser object you've already created, although you
+could also subclass this module and set these up as class data.
+
+Each time we call a trigger we wrap it in an eval block. If the eval
+block catches an error we simply call 'next' on the loop. These can
+therefore be used for short-circuiting.on certain conditions.
+
+=head2 before_parse
+
+  $parser->add_trigger(before_parse => sub {
+    my ($self, $line) = @_;
+    die unless $line =~ /wanted/i;
+  });
+
+Before we call Text::CSV_XS 'parse' on each line of input text, we call
+the before_parse trigger with that line of text.
+
+=head2 after_parse
+
+  $parser->add_trigger(after_parse => sub {
+    my ($self, $data) = @_;
+    die unless $wanted{$data->[0]};
+  });
+
+After we sucessfully call Text::CSV_XS 'parse' on each line of input text,
+we call the after_parse trigger with a list ref of the values 
+
+=head2 error
+
+Currenly, for each line that we can't parse, we call the 'failure'
+trigger (with the Text::CSV_XS parser object), which emits a warning
+and moves on. This happens in an invisible superclass, so you can supply
+your own behaviour here:
+
+	$parser->add_trigger(on_failure => sub { 
+		my ($self, $csv) = @_;
+		warn "Failed on " . $csv->error_input . "\n";
+	});
 
 =cut
 
@@ -121,34 +171,35 @@ sub field_map {
 	return @{ $self->{_map} || [] };
 }
 
-sub _failed {
-	my ($self, $line) = @_;
-	warn "Failed on $line\n";
-}
-
 sub read_file {
 	my ($self, $file) = @_;
 	$self->_file($file);
 	my @lines = $self->_contents;
 	my @return;
 	my $csv = $self->_parser;
-	foreach (@lines) {
-		next unless $_;
-		unless ($csv->parse($_)) {
-			$self->_failed($csv->error_input);
+	foreach my $line (@lines) {
+		eval { $self->call_trigger(before_parse => $line) };
+		next if $@;
+		next unless $line;
+		unless ($csv->parse($line)) {
+			$self->call_trigger(on_failure => $csv);
 			next;
 		}
 		my @fields = $csv->fields;
+		eval { $self->call_trigger(after_parse => \@fields) };
+		next if $@;
 		if (my @wanted = $self->want_fields) {
 			@fields = @fields[ $self->want_fields ];
 		}
+		my $addition = [ @fields ];
 		if (my @map = $self->field_map) {
 			my $hash = { map { $_ => shift @fields } @map };
 			delete $hash->{null};
-			push @return, $hash;
-		} else {
-			push @return, [@fields];
-		}
+			$addition = $hash;
+		} 
+		eval { $self->call_trigger(after_processing => $addition) };
+		next if $@;
+		push @return, $addition;
 	}
 	return @return;
 }

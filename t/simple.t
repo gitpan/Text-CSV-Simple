@@ -2,7 +2,7 @@
 
 use strict;
 use Text::CSV::Simple;
-use Test::More tests => 12;
+use Test::More tests => 15;
 
 my $datafile = "data/test.csv";
 
@@ -34,5 +34,36 @@ my $datafile = "data/test.csv";
 	is $hash{id}, 1, "Hash id";
 	is $hash{value}, "foo Bar", "Hash value";
 	is $hash{null}, undef, "nothing in null";
+}
+
+{
+	my $parser = Text::CSV::Simple->new;
+	$parser->add_trigger(before_parse => sub { 
+		my ($self, $line) = @_;
+		die unless $line =~ /bar/i;
+	});
+	my @data = $parser->read_file($datafile);
+	is @data, 2, "Only two lines match bar";
+}
+
+{
+	my $parser = Text::CSV::Simple->new;
+	$parser->add_trigger(after_parse => sub { 
+		my ($self, $data) = @_;
+		die if $data->[1] =~ /bar/i;
+	});
+	my @data = $parser->read_file($datafile);
+	is @data, 1, "Only one non-bar line";
+}
+
+{
+	my $parser = Text::CSV::Simple->new;
+	$parser->field_map(qw/id value null/);
+	$parser->add_trigger(after_processing => sub { 
+		my ($self, $data) = @_;
+		$data->{info} = delete $data->{value};
+	});
+	my @data = $parser->read_file($datafile);
+	is $data[0]->{info}, "foo Bar", "Remap columns in AP trigger";
 }
 
