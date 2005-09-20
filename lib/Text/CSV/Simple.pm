@@ -11,7 +11,7 @@ package Text::CSV::Simple;
 
 use base 'Text::CSV::Simple::__::Base';
 
-$VERSION = '0.20';
+$VERSION = '1.00';
 
 use strict;
 
@@ -206,18 +206,34 @@ sub read_file {
 
 =head1 AUTHOR
 
-Tony Bowden, <cpan@tmtm.com>
+Tony Bowden
+
+=head1 BUGS
+
+This doesn't cope with multi-line fields. Technically the CSV format
+allows this, but this is meant to be a ::Simple module, and coping with
+that is currently outside the cope of this module.
 
 =head1 SEE ALSO
 
 Text::CSV_XS
 
-=head1 COPYRIGHT
+=head1 BUGS and QUERIES
 
-Copyright (C) 2004 Tony Bowden. All rights reserved.
+Please direct all correspondence regarding this module to:
+  bug-Text-CSV-Simple@rt.cpan.org
 
-This module is free software; you can redistribute it and/or modify it
-under the same terms as Perl itself
+=head1 COPYRIGHT AND LICENSE
+
+  Copyright (C) 2004-2005 Tony Bowden.
+
+  This program is free software; you can redistribute it and/or modify
+  it under the terms of the GNU General Public License; either version
+  2 of the License, or (at your option) any later version.
+
+  This program is distributed in the hope that it will be useful,
+  but WITHOUT ANY WARRANTY; without even the implied warranty of
+  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
 
 =cut
 
